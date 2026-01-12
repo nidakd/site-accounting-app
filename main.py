@@ -96,7 +96,6 @@ def tahsilat_kaydet(unit_id, amount, p_type, description):
                     cur.execute("UPDATE debt_item SET status = 'PAID' WHERE id = %s", (borc_id,))
                     kalan_odeme -= float(borc_tutar)
                 elif kalan_odeme > 0:
-                    # Kısmi ödeme (Burayı ileride daha detaylandırabiliriz, şimdilik tam ödemeye odaklanalım)
                     pass
             
             conn.commit()
@@ -160,7 +159,7 @@ def get_genel_istatistikler(site_id):
             toplam_gelir = float(cur.fetchone()[0] or 0)
             stats["toplam_tahsilat"] = toplam_gelir
 
-            # 3. Giderler (Burada 'type' olarak düzelttik)
+            # 3. Giderler 
             cur.execute("SELECT SUM(amount) FROM account_transaction WHERE type = 'EXPENSE'")
             toplam_gider = float(cur.fetchone()[0] or 0)
 
@@ -477,7 +476,6 @@ else:
 
         with c2:
             st.subheader("🏢 Blok Bazlı Borç Dağılımı")
-            # --- DÜZELTME: Fonksiyonun içinde conn olsa bile burada da garantiye alıyoruz ---
             blok_borc_df = get_blok_borc_verisi(st.session_state.selected_site_id)
             if not blok_borc_df.empty:
                 st.bar_chart(blok_borc_df, x='Blok', y='Toplam Borç', color="#C62828")
@@ -489,12 +487,11 @@ else:
         # --- ÖZET TABLO ---
         st.subheader("📂 Genel Borç Dağılımı")
         
-        # Burası zaten doğru ama bağlantıyı kurduğumuzdan emin olalım
         conn_genel = get_connection() 
         if conn_genel:
             dist_query = "SELECT type, SUM(expected_amount) FROM debt_item WHERE status != 'PAID' GROUP BY type"
             dist_df = pd.read_sql(dist_query, conn_genel)
-            conn_genel.close() # İşlem bitince kapatıyoruz
+            conn_genel.close() 
             
             if not dist_df.empty:
                 dist_df['type'] = dist_df['type'].replace({'DUES': 'Aidat', 'FUEL': 'Yakıt'})
@@ -516,7 +513,7 @@ else:
         secilen_blok_id = bloklar_df[bloklar_df['name'] == secilen_blok_adi]['id'].values[0]
         
         # 3. Seçilen bloğun dairelerini getirelim
-        conn = get_connection() # SORGUDAN HEMEN ÖNCE
+        conn = get_connection() 
         daire_query = f"SELECT id, unit_number, owner_name FROM unit WHERE building_id = {int(secilen_blok_id)} ORDER BY unit_number::int"
         daireler = pd.read_sql(daire_query, conn)
         conn.close()
@@ -542,7 +539,6 @@ else:
                     else:
                         st.success("✅ Borç bulunmuyor")
                     
-                    # ENGELİ KALDIRDIK: Artık borç olsa da olmasa da bu buton görünecek
                     if st.button(f"🔍 Detayları Gör", key=f"btn_{row['id']}", use_container_width=True):
                         daire_detay_penceresi(row, borclar)
 
@@ -560,7 +556,7 @@ else:
             WHERE b.complex_id = {st.session_state.selected_site_id}
         """
         daireler_df = pd.read_sql(daire_sorgu, conn)
-        conn.close() # İŞİMİZ BİTİNCE KAPATIYORUZ                   
+        conn.close()                   
         
         # 2. Ödeme Formu
         with st.form("tahsilat_formu"):
@@ -641,7 +637,6 @@ else:
                     kategori = st.selectbox("Gider Kategorisi:", 
                         ["Temizlik Ücreti", "Asansör Bakımı", "Elektrik Faturası", "Yakıt Ödemesi", "Su Faturası", "Huzur Hakkı", "Temizlik Malzemesi", "Diğer"])
                 with col2:
-                    # Tarih seçimi
                     tarih = st.date_input("Harcama Tarihi:")
                     aciklama = st.text_area("Harcama Detayı:", placeholder="Örn: X asansör firması aylık bakım bedeli")
                 
@@ -649,7 +644,6 @@ else:
                 
                 if submit:
                     if miktar > 0:
-                        # 1. Adımda yazdığın fonksiyonu burada çağırıyoruz
                         if kaydet_gider(st.session_state.selected_site_id, miktar, kategori, aciklama):
                             st.success(f"Başarılı: {kategori} için ₺{miktar} gider kaydedildi.")
                             st.balloons()
@@ -670,7 +664,6 @@ else:
             conn.close()
             
             if not giderler_df.empty:
-                # Tabloyu şık bir şekilde gösterelim
                 st.dataframe(giderler_df, use_container_width=True, hide_index=True)
             else:
                 st.info("Henüz kaydedilmiş bir gider bulunmuyor.")
@@ -695,7 +688,7 @@ else:
                     if conn:
                         try:
                             cur = conn.cursor()
-                            # --- DÜZELTME BURADA: unit tablosunda complex_id olmadığı için JOIN kullanıyoruz ---
+                            # --- unit tablosunda complex_id olmadığı için JOIN kullanıyoruz ---
                             cur.execute("""
                                 SELECT u.id 
                                 FROM unit u
@@ -855,7 +848,6 @@ else:
                                 (row.get('Ekim Yakıt', 0), 'FUEL', '2025-10-01'),
                                 (row.get('Kasım Yakıt', 0), 'FUEL', '2025-11-01'),
                                 (row.get('Aralık Yakıt', 0), 'FUEL', '2025-12-01'),
-                                # DİKKAT: Burada türü 'OTHER' (Diğer) yaptık
                                 (row.get('Diğer Eksik Ödemeler', 0), 'OTHER', '2025-12-30')
                             ]
                             
