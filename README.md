@@ -27,6 +27,21 @@ Uygulama; aidat, yakıt ve geçmişten devreden borç kalemlerinin takibini, tah
 - **Pandas** – Veri işleme  
 - **python-dotenv** – Ortam değişkenleri ve güvenlik  
 
+### 📂 Veritabanı Dokümantasyonu
+
+Veritabanı kurulum dosyaları `database/` klasöründe yer alır. İşletim mantığı aşağıdaki gibidir:
+
+| Dosya Adı | Açıklama | Sıra |
+| :--- | :--- | :---: |
+| **`revised_create_tables.sql`** | Tabloları ve şemayı oluşturur. | 1 |
+| **`create_payment_transaction_trigger.sql`** | Ödeme (`payment`) tablosuna kayıt girildiğinde `account_transaction` (kasa) tablosuna otomatik gelir kaydı işleyen tetikleyiciyi kurar. | 2 |
+| **`insert_initial_data.sql`** | Bloklar ve daireler gibi sabit verileri yükler. | 3 |
+| **`insert_past_period_debts.sql`** | Geçmiş dönem borçlarını, devir bakiyelerini ve özel durumları (yönetici muafiyetleri vb.) sisteme işler. | 4 |
+
+**Önemli Notlar:**
+- **Otomasyon:** `trg_after_payment_insert` tetikleyicisi sayesinde tahsilat yapıldığında muhasebe defterine manuel kayıt girmeye gerek yoktur.
+- **Geçmiş Borçlar:** `insert_past_period_debts.sql` dosyası sistem canlıya alınırken bir kez çalıştırılır. İçinde Aralık 2025 devir bakiyeleri ve Ocak 2026 tanımları bulunur.
+
 ### ▶️ Kurulum ve Çalıştırma
 
 #### 🔹 Sanal Ortam Kurulumu
@@ -34,9 +49,15 @@ Uygulama; aidat, yakıt ve geçmişten devreden borç kalemlerinin takibini, tah
     source venv/bin/activate   # Windows: venv\Scripts\activate
     pip install -r requirements.txt
 
-#### 🔹 Veritabanı Ayarları
-- `database/revised_create_tables.sql` dosyasını PostgreSQL üzerinde çalıştırın  
-- Proje kök dizininde `.env` dosyası oluşturup veritabanı bilgilerinizi girin  
+#### 🔹 Veritabanı Kurulumu
+Aşağıdaki komutları sırasıyla çalıştırarak veritabanını hazırlayın:
+
+    psql -U postgres -d site_yonetim_db -f database/revised_create_tables.sql
+    psql -U postgres -d site_yonetim_db -f database/create_payment_transaction_trigger.sql
+    psql -U postgres -d site_yonetim_db -f database/insert_initial_data.sql
+    psql -U postgres -d site_yonetim_db -f database/insert_past_period_debts.sql
+
+Proje kök dizininde `.env` dosyası oluşturup veritabanı bağlantı bilgilerinizi girmeyi unutmayın.
 
 #### 🔹 Uygulamayı Çalıştırma
     streamlit run main.py
@@ -76,8 +97,13 @@ It provides an intuitive and secure web-based interface to manage dues, fuel exp
     pip install -r requirements.txt
 
 #### 🔹 Database Setup
-- Execute `database/revised_create_tables.sql` in PostgreSQL  
-- Create a `.env` file in the project root and define database credentials  
+Execute the following SQL files in order for a complete setup:
+- `database/revised_create_tables.sql`
+- `database/create_payment_transaction_trigger.sql` (Automation)
+- `database/insert_initial_data.sql` (Blocks/Units)
+- `database/insert_past_period_debts.sql` (Historical Data)
+
+Create a `.env` file in the project root and define database credentials.
 
 #### 🔹 Run the Application
     streamlit run main.py
