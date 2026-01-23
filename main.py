@@ -296,31 +296,89 @@ def get_daire_extresi(daire_id):
 
 @st.dialog("Daire Cari Hesap Detayı", width="large")
 def daire_detay_penceresi(row, borclar):
-    st.write(f"### 🚪 Daire No: {row['unit_number']} - {row['owner_name']}")
+    # --- YENİ TASARIM BAŞLANGICI ---
     
-    # Üst Bilgi Kartları
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Güncel Borç", f"₺{borclar['toplam']:,.2f}")
+    # 1. BAŞLIK VE DURUM UYARISI
+    durum_renk = "red" if borclar['toplam'] > 0 else "green"
+    durum_ikon = "⚠️" if borclar['toplam'] > 0 else "✅"
+    durum_mesaj = "ÖDEME BEKLİYOR" if borclar['toplam'] > 0 else "BORCU YOK"
     
-    # Sekmeli yapı (Tabs) kullanarak ekranı daha düzenli yapalım
-    tab1, tab2 = st.tabs(["📉 Ödenmemiş Borçlar", "💰 Ödeme Geçmişi (Makbuzlar)"])
+    col_l, col_r = st.columns([3, 1])
+    with col_l:
+        st.markdown(f"## 🚪 Daire {row['unit_number']}")
+        st.markdown(f"**Kat Maliki:** {row['owner_name']}")
+    with col_r:
+        if borclar['toplam'] > 0:
+            st.error(f"{durum_ikon}\n{durum_mesaj}")
+        else:
+            st.success(f"{durum_ikon}\n{durum_mesaj}")
+            
+    st.divider()
+    
+    # 2. RENKLİ KARTLAR (METRİK YERİNE KUTU TASARIMI)
+    k1, k2, k3 = st.columns(3)
+    
+    with k1:
+        st.info(f"🏠 **AİDAT BORCU**\n# ₺{borclar['aidat']:,.2f}")
+    
+    with k2:
+        st.warning(f"🔥 **YAKIT BORCU**\n# ₺{borclar['yakit']:,.2f}")
+        
+    with k3:
+        if borclar['toplam'] > 0:
+            st.error(f"🚨 **GENEL TOPLAM**\n# ₺{borclar['toplam']:,.2f}")
+        else:
+            st.success(f"🎉 **GENEL TOPLAM**\n# ₺{borclar['toplam']:,.2f}")
+
+    # 3. GÖRSEL GRAFİK (YENİ)
+    if borclar['toplam'] > 0:
+        st.markdown("##### 📊 Borç Dağılımı")
+        grafik_data = pd.DataFrame({
+            "Borç Tipi": ["Aidat", "Yakıt"],
+            "Miktar": [borclar['aidat'], borclar['yakit']]
+        })
+        st.bar_chart(grafik_data, x="Borç Tipi", y="Miktar", color="Borç Tipi", horizontal=True, height=200)
+
+    # 4. TABLOLAR
+    st.write("") # Boşluk
+    tab1, tab2 = st.tabs(["📉 DETAYLI BORÇ LİSTESİ", "💰 GEÇMİŞ ÖDEMELER"])
     
     with tab1:
-        st.write("#### Dönem Bazlı Borç Dökümü")
+        st.write("#### 📋 Ödenmesi Gereken Kalemler")
         extre_df = get_daire_extresi(int(row['id']))
+        
         if not extre_df.empty:
-            st.dataframe(extre_df, use_container_width=True, hide_index=True)
+            st.dataframe(
+                extre_df, 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={
+                    "Tutar (TL)": st.column_config.NumberColumn(format="₺%.2f"),
+                    "Borç Türü": st.column_config.TextColumn("Tür", help="Borcun kaynağı (Aidat/Yakıt)"),
+                    "Dönem": st.column_config.TextColumn("Dönem", help="Borcun ait olduğu ay"),
+                }
+            )
+            st.info("💡 Borçlar eskiden yeniye doğru sıralanmıştır. Ödeme yapıldığında sistem otomatik olarak en eski borcu kapatır.")
         else:
-            st.success("Harika! Bu dairenin hiç borcu yok.")
+            st.success("🎉 Harika! Bu dairenin ödenmemiş hiç borcu yok.")
+            st.balloons()
             
     with tab2:
-        st.write("#### Yapılan Tahsilatlar")
+        st.write("#### 🧾 Yapılan Tahsilatlar")
         odeme_df = get_daire_odemeleri(int(row['id']))
         if not odeme_df.empty:
-            st.dataframe(odeme_df, use_container_width=True, hide_index=True)
-            st.info("💡 Yukarıdaki liste, sistemde kayıtlı olan tüm banka ve nakit ödemelerini gösterir.")
+            st.dataframe(
+                odeme_df, 
+                use_container_width=True, 
+                hide_index=True,
+                column_config={
+                    "Tutar (TL)": st.column_config.NumberColumn(format="₺%.2f"),
+                    "Açıklama": st.column_config.TextColumn("Açıklama"),
+                }
+            )
+            st.info("💡 Bu liste sisteme işlenmiş resmi ödeme makbuzlarıdır.")
         else:
-            st.warning("Bu daireye ait henüz bir ödeme kaydı bulunamadı.")
+             st.warning("Bu daireye ait henüz bir ödeme kaydı bulunamadı.")
     
     st.divider()
     if st.button("Kapat", use_container_width=True):
@@ -522,7 +580,6 @@ else:
 
         # 4. Görsel Grid...
         st.write(f"### {secilen_blok_adi} Bloğu Daire Durumları")
-        
         # Her satırda 4 daire olacak şekilde kolonlar
         cols = st.columns(4)
         
@@ -541,7 +598,7 @@ else:
                     else:
                         st.success("✅ Borç bulunmuyor")
                     
-                    if st.button(f"🔍 Detayları Gör", key=f"btn_{row['id']}", use_container_width=True):
+                    if st.button(f"� DETAY (GELİŞMİŞ)", key=f"btn_{row['id']}", use_container_width=True):
                         daire_detay_penceresi(row, borclar)
 
     elif menu == "💰 Kasa (Tahsilat)":
@@ -555,6 +612,7 @@ else:
             FROM unit u
             JOIN building b ON u.building_id = b.id
             WHERE b.complex_id = {st.session_state.selected_site_id}
+            ORDER BY b.name ASC, u.unit_number::int ASC
         """
         daireler_df = pd.read_sql(daire_sorgu, engine)
         
@@ -568,17 +626,49 @@ else:
             
             submit_button = st.form_submit_button("💳 Ödemeyi Sisteme İşle")
             
-            if submit_button:
-                if tutar > 0:
-                    # Tüm sayısal değerleri int() veya float() içine alarak garantiye alıyoruz
-                    s_id = int(st.session_state.selected_site_id)
-                    d_id = int(daire_id)
-                    t_val = float(tutar)
+        if submit_button:
+            if tutar > 0:
+                # Tüm sayısal değerleri int() veya float() içine alarak garantiye alıyoruz
+                s_id = int(st.session_state.selected_site_id)
+                d_id = int(daire_id)
+                t_val = float(tutar)
+                
+                basarili = kaydet_odeme(s_id, d_id, t_val, aciklama)
+                if basarili:
+                    st.balloons()
                     
-                    basarili = kaydet_odeme(s_id, d_id, t_val, aciklama)
-                    if basarili:
-                        st.success(f"Başarılı! {secilen_daire_label} için {t_val} TL ödeme alındı.")
-                        st.balloons()
+                    # --- MAKBUZ OLUŞTURMA ---
+                    st.success("✅ Ödeme Başarıyla Kaydedildi!")
+                    
+                    from datetime import datetime
+                    islem_tarihi = datetime.now().strftime("%d/%m/%Y %H:%M")
+                    
+                    makbuz_metni = f"""
+                    =========================================
+                            TAHSİLAT MAKBUZU
+                    =========================================
+                    Tarih       : {islem_tarihi}
+                    Site        : {st.session_state.selected_site_name}
+                    Daire       : {secilen_daire_label}
+                    
+                    TUTAR       : ₺{t_val:,.2f}
+                    AÇIKLAMA    : {aciklama}
+                    =========================================
+                    Bu makbuz elektronik ortamda üretilmiştir.
+                    """
+                    
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.code(makbuz_metni, language="text")
+                    
+                    with c2:
+                        st.info("Bu makbuzu kopyalayabilir veya indirebilirsiniz.")
+                        st.download_button(
+                            label="📥 Makbuzu İndir (.txt)",
+                            data=makbuz_metni,
+                            file_name=f"tahsilat_makbuzu_{d_id}_{datetime.now().strftime('%Y%m%d%H%M')}.txt",
+                            mime="text/plain"
+                        )
 
 
     elif menu == "👷 Personeller":

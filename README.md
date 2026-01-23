@@ -18,6 +18,8 @@ Uygulama; aidat, yakıt ve geçmişten devreden borç kalemlerinin takibini, tah
 - **Toplu Borçlandırma:** Tek tıkla tüm siteyi borçlandırma ve yönetici muafiyet kontrolü  
 - **Akıllı Veri Aktarımı:** CSV dosyalarından otomatik veri temizleme ve dinamik satır atlama desteği  
 - **FIFO Tahsilat Mantığı:** Ödemelerin otomatik olarak en eski borçtan mahsup edilmesi  
+- **Makbuz Üretimi:** Tahsilat işlemi tamamlandığında otomatik olarak indirilebilir makbuz oluşturma  
+- **Detaylı Daire Görünümü:** Dairelerin borç dökümünü ve ödeme geçmişini sekmeli yapıda (Tab) sunan gelişmiş arayüz  
 - **Detaylı Kategorizasyon:** Aidat, Yakıt ve Eksik Ödeme (Diğer) kalemlerinin bağımsız takibi  
 - **Güvenlik:** Kimlik bilgilerinin koddan bağımsız `.env` katmanında korunması  
 
@@ -80,6 +82,8 @@ It provides an intuitive and secure web-based interface to manage dues, fuel exp
 - **Bulk Invoicing:** One-click debt assignment for all residents with manager exemption handling  
 - **Smart Import:** Automatic data cleaning and dynamic row skipping during CSV imports  
 - **FIFO Payment Logic:** Payments are automatically applied to the oldest outstanding debts  
+- **Receipt Generation:** Automatic downloadable receipt generation upon payment completion  
+- **Enhanced Apartment View:** Advanced tabbed interface showing detailed debt breakdown and payment history  
 - **Detailed Categorization:** Independent tracking of Dues, Fuel, and Other payment types  
 - **Security:** Sensitive credentials are isolated using environment variables (`.env`)  
 
