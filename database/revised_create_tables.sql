@@ -26,6 +26,7 @@ DROP TABLE IF EXISTS unit;
 DROP TABLE IF EXISTS unit_type;
 DROP TABLE IF EXISTS building;
 DROP TABLE IF EXISTS complex_properties;
+DROP TABLE IF EXISTS employee;
 
 --üstteki hali hata verirse
 --alttakini çalıştır
@@ -42,6 +43,7 @@ DROP TABLE IF EXISTS unit CASCADE;
 DROP TABLE IF EXISTS unit_type CASCADE;
 DROP TABLE IF EXISTS building CASCADE;
 DROP TABLE IF EXISTS complex_properties CASCADE;
+DROP TABLE IF EXISTS employee CASCADE;
 
 -----------------------------------------------------------
 -- 1. STRUCTURAL AND PARAMETER TABLES
@@ -144,13 +146,30 @@ CREATE TABLE unit (
 CREATE TABLE app_user (
     id SERIAL PRIMARY KEY,
     complex_id INTEGER REFERENCES complex_properties(id)
-        ON DELETE SET NULL,                       -- Assigned site / Bağlı site
-    unit_id INTEGER REFERENCES unit(id)
-        ON DELETE SET NULL,                       -- Related unit / İlgili daire
-    username VARCHAR(50) NOT NULL UNIQUE,         -- Login username / Kullanıcı adı
+        ON DELETE RESTRICT NOT NULL,              -- Site reference / Site referansı
+    username VARCHAR(100) NOT NULL UNIQUE,        -- Username / Kullanıcı adı
     password_hash VARCHAR(255) NOT NULL,          -- Password hash / Şifre özeti
-    role VARCHAR(20) NOT NULL
-        CHECK (role IN ('MANAGER', 'RESIDENT'))   -- User role / Kullanıcı rolü
+    role VARCHAR(50) DEFAULT 'admin',             -- Role / Rol
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+/*
+    TABLE / TABLO : employee
+
+    PURPOSE / AMAÇ:
+    Stores employee records.
+    Çalışan kayıtlarını tutar.
+
+    NOTE / NOT:
+    Employees are linked to complexes, not individual units.
+*/
+CREATE TABLE employee (
+    id SERIAL PRIMARY KEY,
+    complex_id INTEGER REFERENCES complex_properties(id)
+        ON DELETE RESTRICT NOT NULL,              -- Related site / İlgili site
+    name VARCHAR(100) NOT NULL,                    -- Employee name / Çalışan adı
+    role VARCHAR(100),                            -- Job role / Görev rolü
+    salary NUMERIC(10,2) DEFAULT 0.00              -- Salary / Maaş
 );
 
 /*
@@ -245,3 +264,15 @@ CREATE TABLE payment_debt (
 */
 ALTER TABLE unit
 ADD COLUMN IF NOT EXISTS is_exempt BOOLEAN DEFAULT FALSE;
+
+/*
+    TABLE: unit (Custom Dues)
+    PURPOSE (EN): Allows setting a custom dues amount for specific units
+                  (e.g., specific agreements or discounts).
+    PURPOSE (TR): Belirli daireler için özel aidat tutarı tanımlamaya izin verir
+                  (ör. özel anlaşmalar veya indirimler).
+    
+    DEFAULT: NULL (Use standard dues / Standart aidat kullanılır)
+*/
+ALTER TABLE unit
+ADD COLUMN IF NOT EXISTS custom_dues_amount NUMERIC(10,2) DEFAULT NULL;

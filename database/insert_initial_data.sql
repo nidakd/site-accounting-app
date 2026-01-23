@@ -2,87 +2,49 @@
    FILE NAME / DOSYA ADI : insert_initial_data.sql
 
    PURPOSE / AMAÇ:
-   EN: Inserts all initial (seed) data fully compatible with the revised schema
-       (app_user, account_transaction, etc.). The script includes all 56 apartments
-       belonging to the site.
+   EN: Inserts all initial (seed) data fully compatible with the revised schema.
+       Includes Site Info, Buildings, Unit Types, 56 Units (Correct List),
+       Employees, and exemptions/custom dues settings.
 
-   TR: Yeni şemaya (app_user, account_transaction vb.) tamamen uyumlu olacak şekilde
-       başlangıç (örnek) verilerini ekler. Script, sitedeki toplam 56 dairenin
-       tamamını içermektedir.
-
-   NOTES / NOTLAR:
-   - EN: This script assumes that table creation scripts have already been executed.
-   - TR: Bu script, tablo oluşturma scriptlerinin daha önce çalıştırıldığını varsayar.
+   TR: Yeni şema ile tamamen uyumlu başlangıç verilerini ekler.
+       Site Bilgisi, Bloklar, Daire Tipleri, 56 Daire (Doğru Liste),
+       Çalışanlar ve muafiyet/özel aidat ayarlarını içerir.
 */
 
 -----------------------------------------------------------
 -- 1. SITE INFORMATION / SİTE BİLGİSİ
 -----------------------------------------------------------
-/*
-   EN:
-   Inserts the main site/complex information.
-
-   TR:
-   Ana site (kompleks) bilgileri eklenir.
-*/
 INSERT INTO complex_properties (name, total_units, currency, dues_collection_day)
 VALUES (
     'DUZCE ILI KAYNASLI ILCESI KARACALI MAHALLESI TOPLU KONUTLARI',
-    56,        -- EN/TR: Total apartment count / Toplam daire sayısı
-    'TRY',     -- EN/TR: Currency / Para birimi
-    1          -- EN/TR: Monthly dues collection day / Aidat toplama günü
+    56,        
+    'TRY',     
+    1          
 );
 
 -----------------------------------------------------------
 -- 2. BUILDINGS / BLOKLAR
 -----------------------------------------------------------
-/*
-   EN:
-   Inserts all buildings belonging to the site.
-   Each building is linked using complex_id = 1.
-
-   TR:
-   Siteye ait tüm bloklar eklenir.
-   Her blok complex_id = 1 olacak şekilde ilişkilendirilmiştir.
-*/
 INSERT INTO building (complex_id, name) VALUES 
 (1, 'KT1'), (1, 'KT2'), (1, 'KT3'),
 (1, 'KT4'), (1, 'KT5'), (1, 'KT6'), (1, 'KT7');
 
 -----------------------------------------------------------
--- 3. APARTMENT TYPES / DAİRE TİPLERİ
+-- 3. UNIT TYPES / DAİRE TİPLERİ
 -----------------------------------------------------------
 /*
-   EN:
-   Defines apartment types for the site.
-   Both apartment types have the same default dues amount.
-
-   TR:
-   Siteye ait daire tipleri tanımlanır.
-   Her iki daire tipi için varsayılan aidat aynıdır.
+   EN: Defines standard apartment types (2+1, 3+1).
+   TR: Standart daire tipleri (2+1, 3+1) tanımlanır.
 */
-INSERT INTO unit_type (complex_id, name, default_dues) VALUES 
+INSERT INTO unit_type (complex_id, name, default_dues) VALUES
 (1, '2+1', 800.00),
 (1, '3+1', 800.00);
 
 -----------------------------------------------------------
--- 4. MANAGER ACCOUNT / YÖNETİCİ HESABI
+-- 4. SYSTEM USERS / SİSTEM KULLANICILARI
 -----------------------------------------------------------
-/*
-   EN:
-   Inserts a management (administrator) user.
-   This user is responsible for accounting and system operations.
-
-   TR:
-   Muhasebe ve sistem işlemlerinden sorumlu yönetici kullanıcı eklenir.
-*/
-INSERT INTO app_user (complex_id, username, password_hash, role) 
-VALUES (
-    1,
-    'muhasebe_yoneticisi',
-    'cok_guclu_hash_12345', -- EN/TR: Placeholder password hash / Örnek şifre hash'i
-    'MANAGER'
-);
+INSERT INTO app_user (complex_id, username, password_hash, role) VALUES 
+(1, 'nidakd', 'muhasebe123', 'admin');
 
 -----------------------------------------------------------
 -- 5. ALL APARTMENTS (56 UNITS) / TÜM DAİRELER (56 ADET)
@@ -148,20 +110,8 @@ INSERT INTO unit (building_id, unit_type_id, unit_number, owner_name) VALUES
 
 
 -----------------------------------------------------------
--- 6. ALL EMPLOYEES / TÜM PERSONELLER
+-- 6. EMPLOYEES / ÇALIŞANLAR
 -----------------------------------------------------------
-/*
-   EN:
-   Inserts initial employee records for the housing complex.
-   Includes cleaning staff, block managers, and the general site manager.
-   Some management roles are voluntary, therefore their salary is set to 0.
-
-   TR:
-   Siteye ait başlangıç personel kayıtları eklenir.
-   Temizlik personeli, blok yöneticileri ve site genel yöneticisi dahildir.
-   Bazı yönetici görevleri gönüllülük esaslı olduğu için maaş bilgisi 0 olarak girilmiştir.
-*/
-
 INSERT INTO employee (complex_id, name, role, salary) VALUES 
 (1, 'Hamiyet Özaltın', 'Temizlik Görevlisi', 4500),
 (1, 'Durhan Bay', 'Yönetici (KT1-KT2)', 0),
@@ -172,23 +122,29 @@ INSERT INTO employee (complex_id, name, role, salary) VALUES
 
 
 -----------------------------------------------------------
--- UNIT EXEMPT STATUS UPDATE / DAİRE MUAFİYET DURUMU GÜNCELLEME
+-- 7. SPECIAL AGREEMENTS & EXEMPTIONS / ÖZEL ANLAŞMALAR VE MUAFİYETLER
 -----------------------------------------------------------
-/*
-   EN:
-   Updates the "is_exempt" field for specific unit owners.
-   These units are marked as exempt from payments such as dues or fees.
 
-   TR:
-   Belirli daire sahipleri için muafiyet durumu güncellenir.
-   Bu daireler aidat veya benzeri ödemelerden muaf olarak işaretlenir.
-*/
+/* 1. CUSTOM DUES (200 TL) / ÖZEL AİDATLILAR */
+-- Celal Şen (KT2, Daire 2)
+UPDATE unit SET custom_dues_amount = 200.00 
+WHERE owner_name = 'CELAL ŞEN';
 
-UPDATE unit
-SET is_exempt = TRUE
-WHERE owner_name IN (
-    'Durhan Bay',
-    'Beytullah İnce',
-    'Mustafa Altundal',
-    'Sadettin Akdoğan'
-);
+-- Murat Kıroğlu (KT5, Daire 2)
+UPDATE unit SET custom_dues_amount = 200.00 
+WHERE owner_name = 'MURAT KIROĞLU';
+
+
+/* 2. EXEMPT MANAGERS / MUAF YÖNETİCİLER */
+-- Durhan Bay (KT2, Daire 4)
+UPDATE unit SET is_exempt = TRUE WHERE owner_name = 'DURHAN BAY';
+
+-- Beytullah İnce (KT4, Daire 2)
+UPDATE unit SET is_exempt = TRUE WHERE owner_name = 'BEYTULLAH İNCE';
+
+-- Mustafa Altundal (KT6, Daire 2)
+UPDATE unit SET is_exempt = TRUE WHERE owner_name = 'MUSTAFA ALTUNDAL';
+
+-- Güler Akdoğan (KT7, Daire 3)
+UPDATE unit SET is_exempt = TRUE WHERE owner_name = 'GÜLER AKDOĞAN';
+

@@ -3,9 +3,21 @@ import psycopg2
 import pandas as pd
 import os
 from dotenv import load_dotenv
+from sqlalchemy import create_engine
 
 load_dotenv()
 
+
+@st.cache_resource
+def get_db_engine():
+    """SQLAlchemy engine oluşturur ve önbelleğe alır."""
+    try:
+        db_url = f"postgresql+psycopg2://{os.getenv('DB_USER')}:{os.getenv('DB_PASS')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+        engine = create_engine(db_url)
+        return engine
+    except Exception as e:
+        st.error(f"Veritabanı bağlantı hatası (Engine): {e}")
+        return None
 
 def get_connection():
     try:
@@ -107,8 +119,8 @@ def tahsilat_kaydet(unit_id, amount, p_type, description):
     return False
 
 def get_aylik_tahsilat_verisi(site_id):
-    conn = get_connection()
-    if conn:
+    engine = get_db_engine()
+    if engine:
         try:
             # Son 6 ayın tahsilatlarını getirir
             query = """
@@ -118,15 +130,14 @@ def get_aylik_tahsilat_verisi(site_id):
                 GROUP BY ay
                 ORDER BY sirala ASC
             """
-            df = pd.read_sql(query, conn, params=(site_id,))
-            conn.close()
+            df = pd.read_sql(query, engine, params=(site_id,))
             return df
         except: return pd.DataFrame()
     return pd.DataFrame()
 
 def get_blok_borc_verisi(site_id):
-    conn = get_connection()
-    if conn:
+    engine = get_db_engine()
+    if engine:
         try:
             # Bloklara göre toplam borç dağılımı
             query = """
@@ -138,8 +149,7 @@ def get_blok_borc_verisi(site_id):
                 GROUP BY b.name
                 ORDER BY "Toplam Borç" DESC
             """
-            df = pd.read_sql(query, conn, params=(site_id,))
-            conn.close()
+            df = pd.read_sql(query, engine, params=(site_id,))
             return df
         except: return pd.DataFrame()
     return pd.DataFrame()
@@ -238,8 +248,8 @@ def kaydet_gider(site_id, miktar, kategori, aciklama):
             return False
 
 def get_daire_odemeleri(daire_id):
-    conn = get_connection()
-    if conn:
+    engine = get_db_engine()
+    if engine:
         try:
             # Dairenin yaptığı tüm ödemeleri en yeni tarihten başlayarak getiriyoruz
             query = """
@@ -248,8 +258,7 @@ def get_daire_odemeleri(daire_id):
                 WHERE unit_id = %s 
                 ORDER BY process_date DESC
             """
-            df = pd.read_sql(query, conn, params=(daire_id,))
-            conn.close()
+            df = pd.read_sql(query, engine, params=(daire_id,))
             
             if not df.empty:
                 # Tarihi gg/aa/yyyy formatına çevirelim
@@ -262,8 +271,8 @@ def get_daire_odemeleri(daire_id):
     return pd.DataFrame()
 
 def get_daire_extresi(daire_id):
-    conn = get_connection()
-    if conn:
+    engine = get_db_engine()
+    if engine:
         try:
             query = """
                 SELECT period_month, type, expected_amount 
@@ -271,8 +280,7 @@ def get_daire_extresi(daire_id):
                 WHERE unit_id = %s AND status != 'PAID'
                 ORDER BY period_month ASC
             """
-            df = pd.read_sql(query, conn, params=(daire_id,))
-            conn.close()
+            df = pd.read_sql(query, engine, params=(daire_id,))
             
             if not df.empty:
                 # Tarihleri Türkçeleştirme
@@ -369,11 +377,10 @@ if 'selected_site_id' not in st.session_state:
     st.title("🏙️ Site Yönetim Sistemine Hoş Geldiniz")
     st.info("Devam etmek için lütfen yönetmek istediğiniz siteyi seçin.")
     
-    conn = get_connection()
-    if conn:
+    engine = get_db_engine()
+    if engine:
         query = "SELECT id, name FROM complex_properties"
-        sites_df = pd.read_sql(query, conn)
-        conn.close()
+        sites_df = pd.read_sql(query, engine)
 
         if not sites_df.empty:
             secilen_ad = st.selectbox("Site Seçiniz:", sites_df['name'])
@@ -426,7 +433,7 @@ else:
         st.subheader("📥 Veri Dışarı Aktar (Excel/CSV)")
         
         if st.button("📊 Güncel Borç Listesini Hazırla"):
-            conn = get_connection()
+            engine = get_db_engine()
             sorgu = """
                 SELECT b.name as "Blok", 
                        u.unit_number as "Daire No", 
@@ -440,8 +447,7 @@ else:
                 JOIN building b ON u.building_id = b.id
                 ORDER BY b.name ASC, u.unit_number::int ASC, d.period_month DESC
             """
-            df_indir = pd.read_sql(sorgu, conn)
-            conn.close()
+            df_indir = pd.read_sql(sorgu, engine)
             
             if not df_indir.empty:
                 df_indir['Tur'] = df_indir['Tur'].replace({'DUES': 'Aidat', 'FUEL': 'Yakıt'})
@@ -487,11 +493,10 @@ else:
         # --- ÖZET TABLO ---
         st.subheader("📂 Genel Borç Dağılımı")
         
-        conn_genel = get_connection() 
-        if conn_genel:
+        engine = get_db_engine()
+        if engine:
             dist_query = "SELECT type, SUM(expected_amount) FROM debt_item WHERE status != 'PAID' GROUP BY type"
-            dist_df = pd.read_sql(dist_query, conn_genel)
-            conn_genel.close() 
+            dist_df = pd.read_sql(dist_query, engine)
             
             if not dist_df.empty:
                 dist_df['type'] = dist_df['type'].replace({'DUES': 'Aidat', 'FUEL': 'Yakıt'})
@@ -501,24 +506,21 @@ else:
     elif menu == "🏢 Bloklar ve Daireler":
         st.header("🏢 Blok Bazlı Borç Takip Paneli")
         
-
-        conn = get_connection()
+        engine = get_db_engine()
 
         # 1. Blokları çekelim
         bloklar_query = f"SELECT id, name FROM building WHERE complex_id = {st.session_state.selected_site_id}"
-        bloklar_df = pd.read_sql(bloklar_query, conn)
+        bloklar_df = pd.read_sql(bloklar_query, engine)
         
         # 2. Üstten blok seçimi yapalım
         secilen_blok_adi = st.selectbox("İncelemek istediğiniz bloğu seçin:", bloklar_df['name'])
         secilen_blok_id = bloklar_df[bloklar_df['name'] == secilen_blok_adi]['id'].values[0]
         
         # 3. Seçilen bloğun dairelerini getirelim
-        conn = get_connection() 
         daire_query = f"SELECT id, unit_number, owner_name FROM unit WHERE building_id = {int(secilen_blok_id)} ORDER BY unit_number::int"
-        daireler = pd.read_sql(daire_query, conn)
-        conn.close()
-        
-        # 4. Görsel Grid (Kutucuklar) Oluşturma
+        daireler = pd.read_sql(daire_query, engine)
+
+        # 4. Görsel Grid...
         st.write(f"### {secilen_blok_adi} Bloğu Daire Durumları")
         
         # Her satırda 4 daire olacak şekilde kolonlar
@@ -545,8 +547,7 @@ else:
     elif menu == "💰 Kasa (Tahsilat)":
         st.header("💰 Yeni Tahsilat Girişi")
         
-        conn = get_connection()
-
+        engine = get_db_engine()
 
         # 1. Daire listesini çekelim (Seçim kutusu için)
         daire_sorgu = f"""
@@ -555,8 +556,7 @@ else:
             JOIN building b ON u.building_id = b.id
             WHERE b.complex_id = {st.session_state.selected_site_id}
         """
-        daireler_df = pd.read_sql(daire_sorgu, conn)
-        conn.close()                   
+        daireler_df = pd.read_sql(daire_sorgu, engine)
         
         # 2. Ödeme Formu
         with st.form("tahsilat_formu"):
@@ -586,12 +586,12 @@ else:
         
         tab1, tab2 = st.tabs(["👥 Personel Listesi", "💸 Maaş/Ödeme Yap"])
         
+        engine = get_db_engine()
+
         with tab1:
             st.subheader("Aktif Personeller")
-            conn = get_connection()
             # Veritabanındaki personelleri çekiyoruz
-            personel_df = pd.read_sql(f"SELECT name as \"İsim\", role as \"Görev\", salary as \"Maaş\" FROM employee WHERE complex_id = {st.session_state.selected_site_id}", conn)
-            conn.close()
+            personel_df = pd.read_sql(f"SELECT name as \"İsim\", role as \"Görev\", salary as \"Maaş\" FROM employee WHERE complex_id = {st.session_state.selected_site_id}", engine)
             
             if not personel_df.empty:
                 st.table(personel_df)
@@ -602,9 +602,7 @@ else:
             st.subheader("Ödeme Formu")
             with st.form("personel_odeme_formu", clear_on_submit=True):
                 # Personel seçimi için listeyi tekrar çekelim
-                conn = get_connection()
-                p_list = pd.read_sql(f"SELECT id, name FROM employee WHERE complex_id = {st.session_state.selected_site_id}", conn)
-                conn.close()
+                p_list = pd.read_sql(f"SELECT id, name FROM employee WHERE complex_id = {st.session_state.selected_site_id}", engine)
                 
                 if not p_list.empty:
                     secilen_p = st.selectbox("Personel Seçin:", p_list['name'])
@@ -652,7 +650,7 @@ else:
 
         with tab2:
             st.subheader("📋 Son Harcamalar")
-            conn = get_connection()
+            engine = get_db_engine()
             # account_transaction tablosundaki EXPENSE (Gider) kayıtlarını çekiyoruz
             gider_query = """
                     SELECT process_date as "Tarih", category as "Kategori", amount as "Tutar", description as "Açıklama"
@@ -660,8 +658,7 @@ else:
                     WHERE type = 'EXPENSE'
                     ORDER BY process_date DESC
             """
-            giderler_df = pd.read_sql(gider_query, conn)
-            conn.close()
+            giderler_df = pd.read_sql(gider_query, engine)
             
             if not giderler_df.empty:
                 st.dataframe(giderler_df, use_container_width=True, hide_index=True)
@@ -717,8 +714,8 @@ else:
             st.subheader("Daire Bazlı Farklı Yakıt Girişi")
             st.info("💡 Şablondaki 'Dönem' kısmını YYYY-AA-GG (Örn: 2026-01-01) formatında doldurun.")
             
+            engine = get_db_engine()
             # 1. ADIM: Şablon Hazırlama (Dönem sütunu eklendi)
-            conn = get_connection()
             sablon_sorgu = """
                 SELECT u.unit_number as "Daire No", u.owner_name as "Ev Sahibi", 
                        0.0 as "Tutar", '2026-01-01' as "Donem" 
@@ -727,8 +724,7 @@ else:
                 WHERE b.complex_id = %s 
                 ORDER BY b.name ASC, u.unit_number::int ASC
             """
-            sablon_df = pd.read_sql(sablon_sorgu, conn, params=(st.session_state.selected_site_id,))
-            conn.close()
+            sablon_df = pd.read_sql(sablon_sorgu, engine, params=(st.session_state.selected_site_id,))
             
             csv_sablon = sablon_df.to_csv(index=False).encode('utf-8-sig')
             
@@ -781,8 +777,8 @@ else:
             st.subheader("📅 Geçmiş Dönem Detaylı Borç Aktarımı")
             st.info("💡 Blok bazlı ayrım için lütfen yeni şablonu indirin ve kullanın.")
             
+            engine = get_db_engine()
             # 1. ADIM: Blok Bilgili Şablon Hazırlama
-            conn = get_connection()
             sablon_sorgu = """
                 SELECT b.name as "Blok", u.unit_number as "Daire No", u.owner_name as "Ev Sahibi", 
                        0.0 as "Gecmis_Aidat", 0.0 as "Ekim_Yakit", 
@@ -792,8 +788,7 @@ else:
                 WHERE b.complex_id = %s 
                 ORDER BY b.name ASC, u.unit_number::int ASC
             """
-            sablon_df = pd.read_sql(sablon_sorgu, conn, params=(st.session_state.selected_site_id,))
-            conn.close()
+            sablon_df = pd.read_sql(sablon_sorgu, engine, params=(st.session_state.selected_site_id,))
             
             sablon_df.columns = ["Blok", "Daire No", "Ev Sahibi", "Geçmiş Aidat Borcu", "Ekim Yakıt", "Kasım Yakıt", "Aralık Yakıt", "Diğer Eksik Ödemeler"]
             

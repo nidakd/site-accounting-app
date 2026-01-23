@@ -108,3 +108,79 @@ CREATE TRIGGER trg_after_payment_insert
 AFTER INSERT ON payment
 FOR EACH ROW
 EXECUTE FUNCTION fn_create_payment_transaction();
+
+-----------------------------------------------------------
+-- AUTOMATIC DEBT DISTRIBUTION TRIGGER / OTOMATİK BORÇ DAĞITIMI
+-----------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION fn_distribute_payment_to_debts()
+RETURNS TRIGGER AS $$
+DECLARE
+    r_debt RECORD;
+    v_remaining_payment NUMERIC(10,2);
+    v_debt_balance NUMERIC(10,2);
+    v_pay_amount NUMERIC(10,2);
+    v_already_paid NUMERIC(10,2);
+BEGIN
+    -- 1. Ödenen tutarı değişkene al
+    v_remaining_payment := NEW.amount;
+
+    -- 2. Bu dairenin ödenmemiş veya kısmi ödenmiş borçlarını getir (Eskiden yeniye)
+    FOR r_debt IN 
+        SELECT d.id, d.expected_amount, d.status 
+        FROM debt_item d
+        WHERE d.unit_id = NEW.unit_id 
+          AND d.status IN ('UNPAID', 'PARTIAL')
+        ORDER BY d.period_month ASC, d.id ASC
+    LOOP
+        -- Eğer dağıtılacak para bittiyse döngüden çık
+        IF v_remaining_payment <= 0 THEN
+            EXIT;
+        END IF;
+
+        -- 3. Bu borç kalemi için daha önce ne kadar ödenmiş?
+        SELECT COALESCE(SUM(covered_amount), 0) 
+        INTO v_already_paid
+        FROM payment_debt 
+        WHERE debt_item_id = r_debt.id;
+
+        -- 4. Bu borcun kapanması için kalan tutar nedir?
+        v_debt_balance := r_debt.expected_amount - v_already_paid;
+
+        -- Eğer bakiye 0 veya negatifse (hata/tutarsızlık varsa) bu satırı geç
+        IF v_debt_balance <= 0 THEN
+            -- Durumu PAID yaparak düzelt
+            UPDATE debt_item SET status = 'PAID' WHERE id = r_debt.id;
+            CONTINUE;
+        END IF;
+
+        -- 5. Ne kadar ödeyeceğiz? (Elimizdeki para mı küçük, borç mu?)
+        v_pay_amount := LEAST(v_remaining_payment, v_debt_balance);
+
+        -- 6. İlişki tablosuna (payment_debt) kayıt at
+        INSERT INTO payment_debt (payment_id, debt_item_id, covered_amount)
+        VALUES (NEW.id, r_debt.id, v_pay_amount);
+
+        -- 7. Borç tablosunun durumunu güncelle
+        IF (v_already_paid + v_pay_amount) >= r_debt.expected_amount THEN
+            UPDATE debt_item SET status = 'PAID' WHERE id = r_debt.id;
+        ELSE
+            UPDATE debt_item SET status = 'PARTIAL' WHERE id = r_debt.id;
+        END IF;
+
+        -- 8. Elimizdeki parayı düş
+        v_remaining_payment := v_remaining_payment - v_pay_amount;
+
+    END LOOP;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Trigger Tanımlama
+DROP TRIGGER IF EXISTS trg_auto_distribute_payment ON payment;
+
+CREATE TRIGGER trg_auto_distribute_payment
+AFTER INSERT ON payment
+FOR EACH ROW
+EXECUTE FUNCTION fn_distribute_payment_to_debts();
