@@ -23,6 +23,39 @@ Uygulama; aidat, yakıt ve geçmişten devreden borç kalemlerinin takibini, tah
 - **Detaylı Kategorizasyon:** Aidat, Yakıt ve Eksik Ödeme (Diğer) kalemlerinin bağımsız takibi  
 - **Güvenlik:** Kimlik bilgilerinin koddan bağımsız `.env` katmanında korunması  
 
+### 🏗️ Yeni Modüler Mimari (Project Structure Refactor) - Ocak 2026
+Proje, tek bir `main.py` dosyasından kurtarılarak ölçeklenebilir ve yönetilebilir bir **Modüler Mimari** yapısına geçirilmiştir. 
+
+Yeni dosya yapısı aşağıdaki gibidir:
+
+```plaintext
+site-accounting-app/
+├── main.py (Uygulamanın Giriş Kapısı - Router)
+├── src/
+│   ├── auth/          # Kimlik doğrulama işlemleri (Giriş yapısı)
+│   ├── database/      # Veritabanı bağlantı kodları
+│   ├── services/      # İş Mantığı (Business Logic) Katmanı
+│   │   ├── debt_service.py      # Borç hesaplamaları
+│   │   ├── payment_service.py   # Tahsilat işlemleri
+│   │   ├── expense_service.py   # Gider kaydı işlemleri
+│   │   ├── overview_service.py  # İstatistik ve grafik verileri
+│   │   └── bulk_ops_service.py  # Toplu borçlandırma ve Excel işlemleri
+│   ├── views/         # Arayüz (UI) Katmanı - Sayfalar
+│   │   ├── overview.py   # Genel Durum Paneli
+│   │   ├── buildings.py  # Blok/Daire Detayları
+│   │   ├── payments.py   # Kasa/Tahsilat Ekranı
+│   │   └── ...           # Diğer modül arayüzleri
+│   └── utils/         # Yardımcı araçlar (Makbuz oluşturma vb.)
+└── database/          # SQL Kurulum dosyaları
+```
+
+Bu yapı sayesinde:
+- **Bakım Kolaylığı:** Her işlev kendi dosyasında izole edilmiştir.
+- **Geliştirilebilirlik:** Yeni özellikler mevcut kodu bozmadan eklenebilir.
+- **Temizlik:** Ana dizinde sadece konfigürasyon dosyaları bulunur.
+
+---
+
 ### 🧰 Kullanılan Teknolojiler
 - **Python & Streamlit** – Arayüz ve uygulama mantığı  
 - **PostgreSQL** – İlişkisel veritabanı  
