@@ -20,6 +20,97 @@ def render_overview_page():
 
     st.divider()
     
+    # --- KPİ GOSTERGELERİ ---
+    st.subheader("📈 KPİ Göstergeleri")
+    
+    engine = get_db_engine()
+    
+    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+    
+    # KPİ 1: Tahsilat Oranı
+    with kpi1:
+        try:
+            df = pd.read_sql("""
+                SELECT 
+                    CASE WHEN SUM(expected_amount) > 0 THEN
+                        (SUM(CASE WHEN status = 'PAID' THEN expected_amount ELSE 0 END) / SUM(expected_amount) * 100)
+                    ELSE 0 END as oran
+                FROM debt_item 
+                WHERE unit_id IN (
+                    SELECT id FROM unit 
+                    WHERE building_id IN (
+                        SELECT id FROM building WHERE complex_id = %s
+                    )
+                )
+            """, engine, params=(st.session_state.selected_site_id,))
+            tahsilat_orani = float(df['oran'].iloc[0] or 0)
+        except:
+            tahsilat_orani = 0.0
+        
+        st.metric("✅ Tahsilat Oranı", f"{tahsilat_orani:.1f}%", delta="Hedef: 95%")
+    
+    # KPİ 2: Ortalama Borç
+    with kpi2:
+        try:
+            df = pd.read_sql("""
+                SELECT AVG(expected_amount) as ort 
+                FROM debt_item 
+                WHERE status != 'PAID'
+                AND unit_id IN (
+                    SELECT id FROM unit 
+                    WHERE building_id IN (
+                        SELECT id FROM building WHERE complex_id = %s
+                    )
+                )
+            """, engine, params=(st.session_state.selected_site_id,))
+            ort_borc = float(df['ort'].iloc[0] or 0)
+        except:
+            ort_borc = 0.0
+        
+        st.metric("💸 Ort. Borç", f"₺{ort_borc:,.0f}")
+    
+    # KPİ 3: Vadegeçmiş Borç
+    with kpi3:
+        try:
+            df = pd.read_sql("""
+                SELECT 
+                    CASE WHEN SUM(expected_amount) > 0 THEN
+                        (SUM(CASE WHEN CURRENT_DATE - period_month > interval '30 days' 
+                                  THEN expected_amount ELSE 0 END) / SUM(expected_amount) * 100)
+                    ELSE 0 END as pct
+                FROM debt_item
+                WHERE status != 'PAID'
+                AND unit_id IN (
+                    SELECT id FROM unit 
+                    WHERE building_id IN (
+                        SELECT id FROM building WHERE complex_id = %s
+                    )
+                )
+            """, engine, params=(st.session_state.selected_site_id,))
+            vadegecmis = float(df['pct'].iloc[0] or 0)
+        except:
+            vadegecmis = 0.0
+        
+        st.metric("⏰ Vadegeçmiş (%)", f"{vadegecmis:.1f}%", delta="❌ Azalmalı")
+    
+    # KPİ 4: Toplam Daire
+    with kpi4:
+        try:
+            df = pd.read_sql("""
+                SELECT COUNT(*) as total 
+                FROM unit 
+                WHERE building_id IN (
+                    SELECT id FROM building WHERE complex_id = %s
+                )
+            """, engine, params=(st.session_state.selected_site_id,))
+            total_daire = int(df['total'].iloc[0])
+        except:
+            total_daire = 0
+        
+        st.metric("🏘️ Toplam Daire", total_daire)
+
+    st.divider()
+    
     # --- RAPORLAMA VE EXCEL ÇIKTISI ---
     st.subheader("📥 Veri Dışarı Aktar (Excel/CSV)")
     
@@ -82,6 +173,47 @@ def render_overview_page():
             st.bar_chart(blok_borc_df, x='Blok', y='Toplam Borç', color="#C62828")
         else:
             st.success("✅ Tüm blokların borcu ödenmiş!")
+
+    st.divider()
+    
+    # --- VADEGECMIS BORCLU LISTESI ---
+    st.subheader("🚨 Acil Müdahale Gereken Borçlular (60+ Gün Vadegeçmiş)")
+    
+    try:
+        overdue_query = """
+        SELECT 
+            b.name as "Blok",
+            u.unit_number as "Daire",
+            u.owner_name as "Sahibi",
+            SUM(di.expected_amount) as "Toplam Borç (TL)",
+            EXTRACT(DAY FROM CURRENT_DATE - MIN(di.period_month)) as "Gün (Vade Geçmiş)"
+        FROM debt_item di
+        JOIN unit u ON di.unit_id = u.id
+        JOIN building b ON u.building_id = b.id
+        WHERE di.status != 'PAID' 
+            AND CURRENT_DATE - di.period_month > interval '60 days'
+            AND b.complex_id = %s
+        GROUP BY b.name, u.unit_number, u.owner_name
+        ORDER BY "Toplam Borç (TL)" DESC
+        """
+        
+        df_overdue = pd.read_sql(overdue_query, engine, params=(st.session_state.selected_site_id,))
+        
+        if not df_overdue.empty:
+            st.dataframe(df_overdue, use_container_width=True, hide_index=True)
+            
+            # İndirme butonu
+            csv = df_overdue.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 Vadegeçmiş Borçluları İndir (CSV)",
+                data=csv,
+                file_name=f'vadegecmis_borcular_{pd.Timestamp.now().strftime("%Y%m%d")}.csv',
+                mime='text/csv'
+            )
+        else:
+            st.success("✅ 60 günden fazla vadegeçmiş borç bulunmamaktadır!")
+    except Exception as e:
+        st.warning(f"Veri yüklenemedi: {e}")
 
     st.divider()
     
