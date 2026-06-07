@@ -15,6 +15,7 @@ from src.views.payments import render_payments_page
 from src.views.expenses import render_expenses_page
 from src.views.personnel import render_personnel_page
 from src.views.bulk_ops import render_bulk_ops_page
+from src.views.unit_debt_status import render_unit_debt_status
 
 load_dotenv()
 
@@ -53,7 +54,7 @@ else:
     # Sol Menü Modülleri
     menu = st.sidebar.radio(
     "Menü",
-    ["📊 Genel Bakış", "💰 Kasa (Tahsilat)", "🏢 Bloklar ve Daireler", "📜 Giderler", "👷 Personeller", "📢 Toplu İşlemler"]
+    ["📊 Genel Bakış", "💰 Kasa (Tahsilat)", "🏢 Bloklar ve Daireler", "� Daire Borç Sorgulama", "�📜 Giderler", "👷 Personeller", "📢 Toplu İşlemler"]
     )
 
     if st.sidebar.button("🔄 Site Değiştir"):
@@ -67,6 +68,9 @@ else:
         
     elif menu == "🏢 Bloklar ve Daireler":
         render_buildings_page()
+    
+    elif menu == "📋 Daire Borç Sorgulama":
+        render_unit_debt_status()
 
     elif menu == "💰 Kasa (Tahsilat)":
         render_payments_page()
