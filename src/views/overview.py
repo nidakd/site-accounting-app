@@ -145,7 +145,7 @@ def render_overview_page():
             u.owner_name as sahibi,
             SUM(di.expected_amount) as borc,
             MIN(di.period_month) as ilk_borc_tarihi,
-            EXTRACT(DAY FROM CURRENT_DATE - MIN(di.period_month)) as gun
+            CAST(CURRENT_DATE - MIN(di.period_month) AS INT) as gun
         FROM debt_item di
         JOIN unit u ON di.unit_id = u.id
         JOIN building b ON u.building_id = b.id
@@ -242,7 +242,7 @@ def render_overview_page():
                 u.unit_number as "Daire",
                 u.owner_name as "Sahibi",
                 SUM(di.expected_amount) as "Tutar",
-                EXTRACT(DAY FROM CURRENT_DATE - MIN(di.period_month)) as "Gün"
+                CAST(CURRENT_DATE - MIN(di.period_month) AS INT) as "Gün"
             FROM debt_item di
             JOIN unit u ON di.unit_id = u.id
             JOIN building b ON u.building_id = b.id
