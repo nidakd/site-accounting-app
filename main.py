@@ -69,7 +69,7 @@ else:
     elif menu == "🏢 Bloklar ve Daireler":
         render_buildings_page()
     
-    elif menu == "📋 Daire Borç Sorgulama":
+    elif menu == "� Daire Borç Sorgulama":
         render_unit_debt_status()
 
     elif menu == "💰 Kasa (Tahsilat)":

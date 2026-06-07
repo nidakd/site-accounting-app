@@ -161,7 +161,8 @@ def render_overview_page():
             # 4 sütuna böl, her sütunda 2 borçlu
             cols = st.columns(4)
             
-            for idx, (col_idx, row) in enumerate(zip([0, 0, 1, 1, 2, 2, 3, 3], df_top.itertuples())):
+            for idx, row in enumerate(df_top.itertuples()):
+                col_idx = (idx // 2) % 4  # Her 2 satır = 1 sütun
                 with cols[col_idx]:
                     # Risk seviyesine göre renk
                     if row.borc > 5000:
